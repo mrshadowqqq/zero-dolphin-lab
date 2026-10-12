@@ -46,7 +46,7 @@ jobs:
 
       - name: Install SDK, NDK, and CMake
         run: |
-          sdkmanager --install 'platforms;android-37' 'build-tools;37.0.0' 'ndk;30.0.15729638' 'cmake;3.31.0'
+          sdkmanager --channel=3 --install 'platforms;android-37.0' 'build-tools;37.0.0' 'ndk;30.0.15729638' 'cmake;3.31.6'
           yes | sdkmanager --licenses > /dev/null || true
 
       - name: Gradle cache
@@ -247,6 +247,17 @@ jobs:
       - name: Apply profiler and ${{ matrix.variant }} graphics branch
         run: |
           python3 scripts/prepare_build.py --source dolphin --variant '${{ matrix.variant }}'
+          # Android API 37 is published as 37.0. Both Android modules need the minor version.
+          python3 - <<'PY_SDK37'
+          from pathlib import Path
+          for module in ('app', 'benchmark'):
+              p = Path('dolphin/Source/Android') / module / 'build.gradle.kts'
+              source = p.read_text()
+              old = 'compileSdk = 37'
+              if source.count(old) != 1:
+                  raise RuntimeError(f'Expected one compileSdk = 37 in {p}, found {source.count(old)}')
+              p.write_text(source.replace(old, 'compileSdk { version = release(37) { minorApiLevel = 0 } }'))
+          PY_SDK37
           git -C dolphin diff --check
 
       - name: Build Android arm64 debug APK
